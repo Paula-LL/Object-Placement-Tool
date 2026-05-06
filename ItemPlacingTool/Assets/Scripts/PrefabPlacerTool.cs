@@ -1,15 +1,23 @@
-using System.Collections;
-using System.Collections.Generic;
-using System.Xml.Serialization;
 using UnityEditor;
 using UnityEngine;
 
 public class PrefabPlacerTool : EditorWindow
 {
-    [MenuItem("Utilities/Prefabs")]
+    GameObject activePrefab;
+    Transform prefabTransform;
+    GameObject lastInstance;
+
+
+    [MenuItem("Tools/Prefab Placer Tools")]
+    public static void ShowWindow()
+    {
+
+        EditorWindow.GetWindow(typeof(PrefabPlacerTool), false, "Prefab Placer Tool");
+    }
+
     private void OnEnable()
     {
-        SceneView.duringSceneGui += OnSceneGUI; 
+        SceneView.duringSceneGui += OnSceneGUI;
     }
 
     private void OnDisable()
@@ -17,24 +25,58 @@ public class PrefabPlacerTool : EditorWindow
         SceneView.duringSceneGui -= OnSceneGUI;
     }
 
-    private void OnSceneGUI(SceneView obj) { 
+    private void OnGUI()
+    {
         Event currentEvent = Event.current;
 
-        if (currentEvent.type == EventType.MouseDown)
+        GUILayout.Label("Prefab Placer Tool");
+
+        activePrefab = (GameObject)EditorGUILayout.ObjectField("ACtive Prefab", activePrefab, typeof(GameObject), false);
+        prefabTransform = (Transform)EditorGUILayout.ObjectField("Parent Object", prefabTransform, typeof(Transform), true);
+    }
+
+    private void OnSceneGUI(SceneView sceneView)
+    {
+        Event currentEvent = Event.current;
+
+        if (activePrefab == null)
         {
-            if (currentEvent.button == 0)
+            return;
+        }
+
+        if (currentEvent.type == EventType.MouseDown && currentEvent.button == 0)
+        {
+            Ray ray = HandleUtility.GUIPointToWorldRay(currentEvent.mousePosition);
+            if (Physics.Raycast(ray, out RaycastHit hit))
             {
-                Ray ray = HandleUtility.GUIPointToWorldRay(Event.current.mousePosition);
-                Debug.Log("Left click happened. Ray from " + ray.origin + " to " + ray.direction);
-            }
-        } else if (currentEvent.type == EventType.KeyDown) {
-            if (currentEvent.keyCode == KeyCode.A) {
-                Debug.Log("A was pressed");
-            }
-        } else if (currentEvent.type == EventType.KeyUp) {
-            if (currentEvent.keyCode == KeyCode.A) {
-                Debug.Log("A was released");
+                CreatePrefabInstance(hit.point);
+                currentEvent.Use();
             }
         }
+
+        if (currentEvent.type == EventType.MouseDrag && lastInstance != null)
+        {
+            float rotationSpeed = 0.5f;
+            Undo.RecordObject(lastInstance.transform, "Rotate Prefab Instance");
+
+            lastInstance.transform.Rotate(Vector3.up, currentEvent.delta.x * rotationSpeed, Space.World);
+            currentEvent.Use();
+        }
+    }
+
+    private void CreatePrefabInstance(Vector3 position)
+    {
+        GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(activePrefab);
+
+        Undo.RegisterCreatedObjectUndo(instance, "Instantiate Prefab");
+
+        instance.transform.position = position;
+
+        if (prefabTransform != null)
+        {
+            instance.transform.SetParent(prefabTransform);
+        }
+
+        lastInstance = instance;
     }
 }
